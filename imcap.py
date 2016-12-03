@@ -92,41 +92,41 @@ print "VGG loaded"
 # # let's repeat the image vector to turn it into a sequence.
 # image_model.add(RepeatVector(max_caption_len))
 
-# # the output of both models will be tensors of shape (samples, max_caption_len, 128).
-# # let's concatenate these 2 vector sequences.
-# model = Sequential()
-# model.add(Merge([image_model, language_model], mode='concat', concat_axis=-1))
-# # let's encode this vector sequence into a single vector
-# model.add(GRU(256, return_sequences=False))
-# # which will be used to compute a probability
-# # distribution over what the next word in the caption should be!
-# model.add(Dense(vocab_size))
-# model.add(Activation('softmax'))
+# the output of both models will be tensors of shape (samples, max_caption_len, 128).
+# let's concatenate these 2 vector sequences.
+model = Sequential()
+model.add(Merge([image_model, language_model], mode='concat', concat_axis=-1))
+# let's encode this vector sequence into a single vector
+model.add(GRU(256, return_sequences=False))
+# which will be used to compute a probability
+# distribution over what the next word in the caption should be!
+model.add(Dense(vocab_size))
+model.add(Activation('softmax'))
 
-# model.compile(loss='categorical_crossentropy', optimizer='rmsprop')
-
-
-# capfile = 'data/train_captions.txt'
-# partial_captions1 = tp_utils.vector_rep(capfile, vocab_dict, max_caption_len)
-# nxt_words = tp_utils.next_words(capfile, vocab_dict)
-# print len(vocab_dict)
-# # Texts = ["<start> A cat is jumping <end>","<start> A cat and a dog together <end>"]
-# Images = ["img/1.jpg","img/2.jpg","img/3.jpg","img/4.jpg","img/5.jpg"]
-# images = []
-# for image in Images:
-#   img = cv2.imread(image)
-#   img.resize((3,224,224))
-#   images.append(img)
-# images = np.asarray(images)
+model.compile(loss='categorical_crossentropy', optimizer='rmsprop')
 
 
-# # "images" is a numpy float array of shape (nb_samples, nb_channels=3, width, height).
-# # "captions" is a numpy integer array of shape (nb_samples, max_caption_len)
-# # containing word index sequences representing partial captions.
-# # "nxt_words" is a numpy float array of shape (nb_samples, vocab_size)
-# # containing a categorical encoding (0s and 1s) of the next word in the corresponding
-# # partial caption.
-# model.fit([images, partial_captions1], nxt_words, batch_size=16, nb_epoch=50)
+capfile = 'data/train_captions.txt'
+partial_captions1 = tp_utils.vector_rep(capfile, vocab_dict, max_caption_len)
+nxt_words = tp_utils.next_words(capfile, vocab_dict)
+print len(vocab_dict)
+# Texts = ["<start> A cat is jumping <end>","<start> A cat and a dog together <end>"]
+Images = ["img/1.jpg","img/2.jpg","img/3.jpg","img/4.jpg","img/5.jpg"]
+images = []
+for image in Images:
+  img = cv2.imread(image)
+  img.resize((3,224,224))
+  images.append(img)
+images = np.asarray(images)
 
-# model.predict()
-# model.evaluate([images, partial_captions1], nxt_words, batch_size=16, verbose=0)
+
+# "images" is a numpy float array of shape (nb_samples, nb_channels=3, width, height).
+# "captions" is a numpy integer array of shape (nb_samples, max_caption_len)
+# containing word index sequences representing partial captions.
+# "nxt_words" is a numpy float array of shape (nb_samples, vocab_size)
+# containing a categorical encoding (0s and 1s) of the next word in the corresponding
+# partial caption.
+model.fit([images, partial_captions1], nxt_words, batch_size=16, nb_epoch=50)
+
+model.predict()
+model.evaluate([images, partial_captions1], nxt_words, batch_size=16, verbose=0)
