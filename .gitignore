@@ -1,2 +1,6 @@
 weights/*
 .DS_Store
+imclass_data/*
+data/*
+img/*
+*.h5
