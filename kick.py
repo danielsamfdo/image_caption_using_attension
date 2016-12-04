@@ -1,6 +1,6 @@
 from keras.models import Sequential
 from keras.layers import Embedding, LSTM, Merge
-from keras.layers.core import Flatten, Dense, Dropout
+from keras.layers.core import Flatten, Dense, Dropout, RepeatVector
 from keras.layers.convolutional import Convolution2D, MaxPooling2D, ZeroPadding2D
 from keras.layers.wrappers import TimeDistributed
 from keras.optimizers import SGD
@@ -8,6 +8,8 @@ import cv2, numpy as np
 import os
 from collections import OrderedDict, defaultdict
 import six.moves.cPickle as pkl
+import h5py
+import time
 
 vocab_size=1000
 embedding_vector_length=256
@@ -21,11 +23,15 @@ weights_dir="weights/"
 
 def language_model():
     model = Sequential()
+    print('Adding Embedding')
     model.add(Embedding(vocab_size, embedding_vector_length, input_length=max_caption_len))
+    print('Adding LSTM')
     model.add(LSTM(output_dim, return_sequences=True))
+    print('Adding TimeDistributed Dense')
     model.add(TimeDistributed(Dense(output_dim)))
+    #model.add(Flatten())
 
-    print(model.summary())
+    #print(model.summary())
     return model
 
 def pop(model):
@@ -47,7 +53,7 @@ def pop(model):
 
     return model
 
-def VGG_16(weights_path=None):
+def VGG_16(weights_file=None):
     model = Sequential()
     model.add(ZeroPadding2D((1,1),input_shape=(3,224,224)))
     model.add(Convolution2D(64, 3, 3, activation='relu'))
@@ -93,44 +99,81 @@ def VGG_16(weights_path=None):
     #model.add(Dense(1000, activation='softmax'))
     
     print(model.summary())
-
-    if weights_path:
-        model.load_weights(weights_path)
-    
+    print('Loading weights')
+    if weights_file:
+        model = load_weights(model, weights_file)
+    print('Loaded weights')
     #model = pop(model)
     #model = pop(model)
     #model.layers.pop()
     #model.layers.pop()
     #model.layers.pop()
 
-    print(model.summary())
+    #print(model.summary())
     return model
 
 def build_model(weights_path):
     image_model = VGG_16(weights_path)
+    image_model.add(RepeatVector(max_caption_len))
+    print('Built Image Model')
+    print('Building Language Model')
     lang_model = language_model()
     model = Sequential()
     model.add(Merge([image_model, lang_model], mode='concat',  concat_axis=-1))
     model.add(LSTM(embedding_vector_length, return_sequences=False))
+    #print(vocab_size)
     model.add(Dense(vocab_size, activation='softmax'))
 
+    #print(model.summary())
+    return model
 
-def train(images, partial_captions, next_words):
-    model=build_model(weights_dir + 'vgg16_weights.h5')
+
+def train(images, partial_captions, next_words, v_size):
+    global vocab_size
+    vocab_size = v_size
+    model=build_model('vgg16_weights.h5')
+    print('Built model.')
+    print('Compiling Now')
     model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
-    model.fit([images, partial_captions], next_words, batch_size=16, nb_epoch=100)
+    print('Fitting Now')
+    #print(images.shape)
+    #print(partial_captions.shape)
+    #print(next_words.shape)
+    model.fit([images, partial_captions], next_words, batch_size=3, nb_epoch=100)
+    return model
 
+def load_weights(model, weights_file):
+    f = h5py.File(os.path.join(weights_dir, weights_file))
+    for k in range(f.attrs['nb_layers']):
+        if k >= len(model.layers):
+            # we don't look at the last (fully-connected) layers in the savefile
+            break
+        g = f['layer_{}'.format(k)]
+        weights = [g['param_{}'.format(p)] for p in range(g.attrs['nb_params'])]
+        model.layers[k].set_weights(weights)
+    f.close()
+    return model
+'''
 def main():
     images=load_images()
+    print('Loaded images')
     captions=load_captions()
+    print('Loaded captions')
     vocab = load_vocabulary()
+    print('Loaded vocabulary')
     global vocab_size
     vocab_size = len(vocab)
     images, partial_captions, next_words = gen_image_partial_captions(images, captions, vocab)
-    train(images, partial_captions, next_words)
-    print('Trained on %s images'%len(images))
+    print('Loaded images, partial_captions, next_words')
+    print('Training now')
+    #import kick
+    model = train(images, partial_captions, next_words)
+    timestr = time.strftime("%Y%m%d-%H%M%S")
+    file_name = 'weights_'+timestr+'.hf5'
+    model.save_weights(file_name)
+    print('Trained on %s images, saved weights to %s'%(len(images), file_name))
     for image in images.values():
-        caption = numpy.zeros(max_caption_len)
+        caption = np.zeros(max_caption_len)
         caption[0] = -1
         out = model.predict([image, caption])
         print(out.shape)
@@ -214,4 +257,4 @@ def gen_image_partial_captions(images, captions, vocab):
     return v_i, v_c, v_nw 
 
 if __name__ == "__main__":
-    main()
+    main()'''
