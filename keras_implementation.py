@@ -71,9 +71,9 @@ def prep_image(im):
     # Resize so smallest dim = 224, preserving aspect ratio
     h, w, _ = im.shape
     if h < w:
-        im = skimage.transform.resize(im, (224, w*224/h), preserve_range=True)
+        im = skimage.transform.resize(im, (224, w*224//h), preserve_range=True)
     else:
-        im = skimage.transform.resize(im, (h*224/w, 224), preserve_range=True)
+        im = skimage.transform.resize(im, (h*224//w, 224), preserve_range=True)
 
     # Central crop to 224x224
     h, w, _ = im.shape
@@ -178,7 +178,7 @@ def process_images(dataset, coco=False, d_set="Flicker8k_Dataset"):
     rawim_input = []
     sentences_tokens = []
     for i, image in enumerate(dataset):
-        print "ind_process %s total %s" %(str(ind_process),str(total))
+        print("ind_process %s total %s" %(str(ind_process),str(total)))
         ind_process+=1
         if coco:
             fn = './coco/{}/{}'.format(image['filepath'], image['filename'])
@@ -197,7 +197,7 @@ def process_images(dataset, coco=False, d_set="Flicker8k_Dataset"):
 # In[132]:
 
 rawim_array, cnnim_array, sentences_tokens = process_images(dataset, coco=False, d_set="Flicker8k_Dataset")
-get_ipython().magic(u'matplotlib inline')
+#get_ipython().magic(u'matplotlib inline')
 
 
 # In[154]:
@@ -239,7 +239,7 @@ def gen_image_partial_captions(images, captions, word_to_index, vocab_count):
 # In[155]:
 
 vocab_count = len(word_to_index)
-print cnnim_array.shape
+print(cnnim_array.shape)
 v_i, v_c, v_nw = gen_image_partial_captions(cnnim_array, sentences_tokens, word_to_index, vocab_count)
 
 
@@ -265,13 +265,38 @@ def build_model(weights_path):
     #print(model.summary())
     return model
 
+def predict(model, images, index_to_word):
+    for image in images:
+        caption = np.zeros(max_caption_len).reshape(1, 16)
+        print(caption.shape)
+        caption[0] = -1
+        count=0
+        sentence = []
+        while True:
+            out = model.predict([image, caption])
+            index = out.argmax(-1)
+            print(index)
+            index = index[0]
+            word = index_to_word[index]
+            sentence.append(word)
+            count+= 1
+            if count >= max_caption_len or index == 0: #max caption length reach of '<eos>' encountered
+                break
+            caption[0,count] = index
+        sent_str = " ".join(sentence)
+        print("The Oracle says : %s" %sent_str)
 
 # In[158]:
 
-model=build_model('weights/vgg16_weights.h5')
-print('Built model.')
-print('Compiling Now')
-model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
-print('Fitting Now')
-model.fit([v_i, v_c], v_nw, batch_size=3, nb_epoch=100)
+def train():
+    model=build_model('weights/vgg16_weights.h5')
+    print('Built model.')
+    print('Compiling Now')
+    model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+    print('Fitting Now')
+    model.fit([v_i, v_c], v_nw, batch_size=BATCH_SIZE, nb_epoch=10)
+    return model
 
+
+model = train()
+predict(model, cnnim_array, index_to_word)

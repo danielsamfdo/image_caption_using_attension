@@ -14,7 +14,7 @@ import time
 vocab_size=1000
 embedding_vector_length=256
 max_caption_len=16
-output_dim=4096
+output_dim=1000
 
 image_dir="images/"
 captions_dir="captions/"
@@ -95,10 +95,10 @@ def VGG_16(weights_file=None):
     model.add(Dense(4096, activation='relu'))
     model.add(Dropout(0.5))
     model.add(Dense(4096, activation='relu'))
-    #model.add(Dropout(0.5))
-    #model.add(Dense(1000, activation='softmax'))
+    model.add(Dropout(0.5))
+    model.add(Dense(1000, activation='softmax'))
     
-    print(model.summary())
+    #print(model.summary())
     print('Loading weights')
     if weights_file:
         model = load_weights(model, weights_file)
@@ -153,6 +153,27 @@ def load_weights(model, weights_file):
         model.layers[k].set_weights(weights)
     f.close()
     return model
+
+def predict(model, d_images, index_to_word):
+    for image in d_images.values():
+        caption = np.zeros(max_caption_len).reshape(1, 16)
+        print(caption.shape)
+        caption[0] = -1
+        count=0
+        sentence = []
+        while True:
+            out = model.predict([image, caption])
+            index = out.argmax(-1)
+            print(index)
+            index = index[0]
+            word = index_to_word[index]
+            sentence.append(word)
+            count+= 1
+            if count >= max_caption_len or index == 0: #max caption length reach of '<eos>' encountered
+                break
+            caption[0,count] = index
+        sent_str = " ".join(sentence)
+        print("The Oracle says : %s" %sent_str)
 '''
 def main():
     images=load_images()

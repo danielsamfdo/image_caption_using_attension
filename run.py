@@ -16,15 +16,15 @@ weights_dir="weights/"
 
 
 def main():
-    images=load_images()
+    d_images=load_images()
     print('Loaded images')
-    captions=load_captions()
+    d_captions=load_captions()
     print('Loaded captions')
-    vocab = load_vocabulary()
+    vocab, vocab2 = load_vocabulary()
     print('Loaded vocabulary')
     global vocab_size
     vocab_size = len(vocab)
-    images, partial_captions, next_words = gen_image_partial_captions(images, captions, vocab)
+    images, partial_captions, next_words = gen_image_partial_captions(d_images, d_captions, vocab)
     print('Loaded images, partial_captions, next_words')
     print('Training now')
     import kick
@@ -33,12 +33,8 @@ def main():
     file_name = 'weights_'+timestr+'.hf5'
     model.save_weights(file_name)
     print('Trained on %s images, saved weights to %s'%(len(images), file_name))
-    for image in images.values():
-        caption = np.zeros(max_caption_len)
-        caption[0] = -1
-        out = model.predict([image, caption])
-        print(out.shape)
-        print(out)
+    print("Predicting now")
+    kick.predict(model, d_images, vocab2)
 
 def load_images():
     images = OrderedDict()
@@ -72,14 +68,18 @@ def load_vocabulary():
     with open(os.path.join(vocab_dir,'dictionary.pkl'), 'rb') as f:
         worddict = pkl.load(f)
     vocab = defaultdict(lambda : 1) # return 1, the index for 'UNK' by default
+    vocab2 = defaultdict(lambda : "")
     for word, index in worddict.items():
         vocab[word] = index
+        vocab2[index] = word
     vocab['<eos>'] = 0
     vocab['UNK'] = 1
+    vocab2[0] = '<eos>'
+    vocab2[1] = 'UNK'
     #print(vocab)
     #print(len(vocab))
     #vocab_size = len(vocab.keys())
-    return vocab
+    return vocab, vocab2
 
 def gen_image_partial_captions(images, captions, vocab):
     a_images = []
@@ -112,9 +112,11 @@ def gen_image_partial_captions(images, captions, vocab):
             next_words.append(next_word_ar)
             #print(next_word_ar.shape)
     #print(next_words)
+    print(a_images)
     v_i = np.vstack(a_images)
     v_c = np.vstack(a_captions)
     v_nw = np.vstack(next_words)
+    print(v_i.shape)
     return v_i, v_c, v_nw 
 
 if __name__ == "__main__":
