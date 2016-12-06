@@ -151,9 +151,9 @@ def language_model():
     print('Adding Embedding')
     model.add(Embedding(VOCAB_COUNT, EMBEDDING_SIZE, input_length=SEQUENCE_LENGTH-1))
     print('Adding LSTM')
-    model.add(LSTM(CNN_FEATURE_SIZE, return_sequences=True))
+    model.add(LSTM(EMBEDDING_SIZE, return_sequences=True))
     print('Adding TimeDistributed Dense')
-    model.add(TimeDistributed(Dense(CNN_FEATURE_SIZE)))
+    model.add(TimeDistributed(Dense(EMBEDDING_SIZE)))
     return model
 
 
@@ -161,7 +161,7 @@ def language_model():
 
 dataset = import_flickr8kdataset()
 # Currently testing it out
-dataset = [i for i in dataset[:100]]
+dataset = [i for i in dataset[:2]]
 vocab,word_to_index, index_to_word = word_processing(dataset)
 
 
@@ -252,6 +252,7 @@ VOCAB_COUNT = len(word_to_index)
 
 def build_model(weights_path):
     image_model = VGG_16(weights_path)
+    image_model.add(Dense(EMBEDDING_SIZE, activation='tanh'))
     image_model.add(RepeatVector(SEQUENCE_LENGTH-1))
     print('Built Image Model')
     print('Building Language Model')
@@ -265,22 +266,24 @@ def build_model(weights_path):
     #print(model.summary())
     return model
 
-def predict(model, images, index_to_word):
+def predict(model, images, index_to_word, word_to_index):
     for image in images:
-        caption = np.zeros(max_caption_len).reshape(1, 16)
+        caption = np.zeros(SEQUENCE_LENGTH - 1).reshape(1, SEQUENCE_LENGTH - 1)
         print(caption.shape)
-        caption[0] = -1
+        caption[0,0] = 0
         count=0
         sentence = []
+        a = image.reshape(1,3,224,224)
+        #a = np.array([image])
         while True:
-            out = model.predict([image, caption])
+            out = model.predict([a, caption])
             index = out.argmax(-1)
             print(index)
             index = index[0]
             word = index_to_word[index]
             sentence.append(word)
             count+= 1
-            if count >= max_caption_len or index == 0: #max caption length reach of '<eos>' encountered
+            if count >= SEQUENCE_LENGTH - 1 or index == word_to_index["#END"]: #max caption length reach of '<eos>' encountered
                 break
             caption[0,count] = index
         sent_str = " ".join(sentence)
@@ -294,9 +297,14 @@ def train():
     print('Compiling Now')
     model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
     print('Fitting Now')
-    model.fit([v_i, v_c], v_nw, batch_size=BATCH_SIZE, nb_epoch=10)
+    model.fit([v_i, v_c], v_nw, batch_size=BATCH_SIZE, nb_epoch=1)
     return model
 
 
 model = train()
-predict(model, cnnim_array, index_to_word)
+timestr = time.strftime("%Y%m%d-%H%M%S")
+file_name = 'weights_'+timestr+'.hf5'
+#model.save_weights(file_name)
+print('Trained on %s images, saved weights to %s'%(len(cnnim_array), file_name))
+print(cnnim_array.shape)
+predict(model, v_i, index_to_word, word_to_index)
