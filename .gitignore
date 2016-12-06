@@ -4,3 +4,4 @@ imclass_data/*
 data/*
 img/*
 *.h5
+Flicker8K_Dataset/*
