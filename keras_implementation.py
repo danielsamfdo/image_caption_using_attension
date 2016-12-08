@@ -161,14 +161,14 @@ def language_model():
 
 dataset = import_flickr8kdataset()
 # Currently testing it out
-dataset = [i for i in dataset[:2]]
+dataset = [i for i in dataset[:10]]
 vocab,word_to_index, index_to_word = word_processing(dataset)
 
 
 # In[131]:
 
 def chunks(l, n):
-    for i in xrange(0, len(l), n):
+    for i in range(0, len(l), n):
         yield l[i:i + n]
 
 def process_images(dataset, coco=False, d_set="Flicker8k_Dataset"):
@@ -193,21 +193,47 @@ def process_images(dataset, coco=False, d_set="Flicker8k_Dataset"):
             continue
     return rawim_input, cnn_input, sentences_tokens
 
+def process_cnn_features(dataset, model, coco=False, d_set="Flicker8k_Dataset"):
+    ind_process = 1
+    total = len(dataset)
+    for chunk in chunks(dataset, 25):
+        cnn_input = floatX(np.zeros((len(chunk), 3, 224, 224)))
+        for i, image in enumerate(chunk):
+            print("ind_process %s total %s" %(str(ind_process),str(total)))
+            ind_process+=1
+            if coco:
+                fn = './coco/{}/{}'.format(image['filepath'], image['filename'])
+            else:
+                fn = d_set+'/{}'.format(image['filename'])
+            try:
+                im = plt.imread(fn)
+                _, cnn_input[i] = prep_image(im)
+            except IOError:
+                continue
+        features = model.predict(cnn_input)
+        print(features.shape)
+        print(features[0].shape)
+        print("Processing Features For Chunk")
+        for i, image in enumerate(chunk):
+            image['cnn features'] = features[i]
+
 
 # In[132]:
-
+image_model = VGG_16('weights/vgg16_weights.h5')
 rawim_array, cnnim_array, sentences_tokens = process_images(dataset, coco=False, d_set="Flicker8k_Dataset")
+process_cnn_features(dataset, image_model, False, "Flicker8k_Dataset")
+pkl.dump(dataset, open('flickr8k_800_200_with_cnn_features.pkl','wb'), protocol=pkl.HIGHEST_PROTOCOL)
 #get_ipython().magic(u'matplotlib inline')
 
 
 # In[154]:
 
 def gen_image_partial_captions(images, captions, word_to_index, vocab_count):
-    a_images = []
+    a_features = []
     a_captions = []
     next_words = []
     #vocab_size = len(vocab)
-    for ind, image in enumerate(images):
+    for ind, image in enumerate(dataset):
         sentence = captions[ind]
         partial_caption_ar = np.zeros(SEQUENCE_LENGTH-1, dtype=np.int)
         
@@ -219,7 +245,7 @@ def gen_image_partial_captions(images, captions, word_to_index, vocab_count):
                 pc_copy[i] = word_to_index[words[i]]
             else:
                 pc_copy[i] = word_to_index["#UNK#"]
-            a_images.append(image)
+            a_features.append(image['cnn features'])
             a_captions.append(pc_copy)
             #Generate next word output vector
             next_word = words[i + 1]
@@ -230,7 +256,8 @@ def gen_image_partial_captions(images, captions, word_to_index, vocab_count):
             next_word_ar = np.zeros(vocab_count, dtype=np.int)
             next_word_ar[next_word_index] = 1
             next_words.append(next_word_ar)
-    v_i = np.array(a_images)
+    v_i = np.array(a_features)
+    print(v_i.shape)
     v_c = np.array(a_captions)
     v_nw = np.array(next_words)
     return v_i, v_c, v_nw 
@@ -251,39 +278,45 @@ VOCAB_COUNT = len(word_to_index)
 # In[157]:
 
 def build_model(weights_path):
-    image_model = VGG_16(weights_path)
-    image_model.add(Dense(EMBEDDING_SIZE, activation='tanh'))
-    image_model.add(RepeatVector(SEQUENCE_LENGTH-1))
+    #image_model = VGG_16(weights_path)
+    #image_model.add(Dense(EMBEDDING_SIZE, activation='tanh'))
+    #image_model.add(RepeatVector(SEQUENCE_LENGTH-1))
     print('Built Image Model')
     print('Building Language Model')
+    image_model = Sequential()
+    image_model.add(Dense(CNN_FEATURE_SIZE, input_dim=CNN_FEATURE_SIZE))
+    image_model.add(RepeatVector(SEQUENCE_LENGTH-1))
     lang_model = language_model()
+    #model = lang_model
     model = Sequential()
     model.add(Merge([image_model, lang_model], mode='concat',  concat_axis=-1))
+    #model.add(Merge([image_model, lang_model], mode='concat',  concat_axis=-1))
     model.add(LSTM(EMBEDDING_SIZE, return_sequences=False))
     #print(vocab_size)
     model.add(Dense(VOCAB_COUNT, activation='softmax'))
 
-    #print(model.summary())
+    print(model.summary())
     return model
 
 def predict(model, images, index_to_word, word_to_index):
-    for image in images:
+    for ind, image in enumerate(dataset):
         caption = np.zeros(SEQUENCE_LENGTH - 1).reshape(1, SEQUENCE_LENGTH - 1)
         print(caption.shape)
         caption[0,0] = 0
         count=0
         sentence = []
-        a = image.reshape(1,3,224,224)
+        #a = image.reshape(1,3,224,224)
         #a = np.array([image])
+        f = image['cnn features'].reshape(1, CNN_FEATURE_SIZE)
         while True:
-            out = model.predict([a, caption])
+            out = model.predict([f, caption])
             index = out.argmax(-1)
             print(index)
             index = index[0]
             word = index_to_word[index]
             sentence.append(word)
             count+= 1
-            if count >= SEQUENCE_LENGTH - 1 or index == word_to_index["#END"]: #max caption length reach of '<eos>' encountered
+            if count >= SEQUENCE_LENGTH - 1 or index == word_to_index["#END#"]: #max caption length reach of '<eos>' encountered
                 break
             caption[0,count] = index
         sent_str = " ".join(sentence)
@@ -297,8 +330,9 @@ def train():
     print('Compiling Now')
     model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
     print('Fitting Now')
-    model.fit([v_i, v_c], v_nw, batch_size=BATCH_SIZE, nb_epoch=1)
+    model.fit([v_i, v_c], v_nw, batch_size=BATCH_SIZE, nb_epoch=10)
     return model
+
 
 
 model = train()
@@ -307,4 +341,4 @@ file_name = 'weights_'+timestr+'.hf5'
 #model.save_weights(file_name)
 print('Trained on %s images, saved weights to %s'%(len(cnnim_array), file_name))
 print(cnnim_array.shape)
-predict(model, v_i, index_to_word, word_to_index)
+predict(model, cnnim_array, index_to_word, word_to_index)
