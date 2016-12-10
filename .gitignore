@@ -1,3 +1,4 @@
+*.pyc
 *.pkl
 attention_mechanisms_img_caption/.ipynb_checkpoints/*
 weights/*
