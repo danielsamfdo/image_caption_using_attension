@@ -242,7 +242,7 @@ if __name__ == "__main__":
     model = VGG_16('weights/vgg16_weights.h5')
     sgd = SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
     model.compile(optimizer=sgd, loss='categorical_crossentropy')
-    d = pickle.load(open('flickr8k_lstm_1000_trained.pkl'))
+    d = pickle.load(open('flickr8k_lstm_final.pkl'))
     vocab = d['vocab']
     word_to_index = d['word_to_index']
     index_to_word = d['index_to_word']
@@ -282,7 +282,7 @@ if __name__ == "__main__":
 
     # finally, the separation between batch and time dimension is restored
     l_out = lasagne.layers.ReshapeLayer(l_decoder, (BATCH_SIZE, SEQUENCE_LENGTH, len(vocab)))
-    
+
 
 
     lasagne.layers.set_all_param_values(l_out, d['param values'])
@@ -298,7 +298,7 @@ if __name__ == "__main__":
     f = theano.function([x_cnn_sym, x_sentence_sym], output)
 
 
-    test_image = "Dog-and-Cat-Wallpaper-teddybear64-16834786-1280-800-1024x640.jpg" 
+    test_image = "Flicker8k_Dataset/1002674143_1b742ab4b8.jpg"#"Dog-and-Cat-Wallpaper-teddybear64-16834786-1280-800-1024x640.jpg" 
     # "img/football.jpeg"
     raw_im, cnn_im = prep_image(plt.imread(test_image))
     plt.imshow(raw_im)
