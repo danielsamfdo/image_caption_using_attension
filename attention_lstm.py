@@ -3,6 +3,7 @@ from keras.layers.recurrent import LSTM
 from keras.engine import InputSpec
 from keras import activations, initializations, regularizers
 from keras.layers.recurrent import time_distributed_dense
+import numpy as np
 
 class AttentionLSTM(LSTM):
 
@@ -10,6 +11,7 @@ class AttentionLSTM(LSTM):
         prev_h1 = states[0]
         prev_c1 = states[1]
         proj_z = states[2]
+        #alphaz = states[3]
         B_U = states[3]
         B_W = states[4]
         B_Z = states[5]
@@ -21,12 +23,15 @@ class AttentionLSTM(LSTM):
         proj_z = K.tanh(proj_z)
 
         alpha = K.dot(proj_z, self.U_att ) + self.b2_att
-        print(alpha)
         alpha_shape = alpha.shape
         alpha = K.softmax(alpha.reshape((alpha_shape[0], alpha_shape[1])))
+        
+        alphaz = alpha
+        self.alphaz = alpha
+        
         z = (self.initial_z * alpha[:, :, None]).sum(1)
-        print(z)
-        print(z.shape)
+        #print(z)
+        #print(z.shape)
 
         x_i = x[:, :self.output_dim]
         x_f = x[:, self.output_dim: 2 * self.output_dim]
@@ -70,6 +75,7 @@ class AttentionLSTM(LSTM):
         self.initial_h = initial_h
         self.initial_c = initial_c
         self.initial_z = initial_z
+        self.alphaz = None
         self.z_dim = z_dim
         self.init = initializations.get(init)
         self.inner_init = initializations.get(inner_init)
@@ -227,7 +233,8 @@ class AttentionLSTM(LSTM):
                 self.states[1] = self.initial_c 
 
             self.states[2] = self.get_proj_z() 
-
+            
+            #self.states[3] = np.zeros((input_shape[0], 196))
             '''K.set_value(self.states[1],
                         self.initial_c)
             K.set_value(self.states[2],
@@ -236,8 +243,9 @@ class AttentionLSTM(LSTM):
             self.states = [self.initial_h,
                            self.initial_c,
                            self.get_proj_z()]
-
+    
     def get_initial_states(self, x):
+        input_shape = self.input_spec[0].shape
         if hasattr(self, 'states'):
             #K.set_value(self.states[0],
             #            np.zeros((input_shape[0], self.output_dim)))
@@ -256,6 +264,8 @@ class AttentionLSTM(LSTM):
                 self.states[1] = self.initial_c 
 
             self.states[2] =self.get_proj_z() 
+
+            #self.states[3] = np.zeros((input_shape[0], 196))
         else:
             self.states = [self.initial_h,
                            self.initial_c,
@@ -284,7 +294,7 @@ class AttentionLSTM(LSTM):
         if 0 < self.dropout_Z < 1:
             ones = K.ones_like(K.reshape(x[:, 0, 0], (-1, 1)))
             ones = K.tile(ones, (1, self.z_dim))
-            B_U = [K.in_train_phase(K.dropout(ones, self.dropout_Z), ones) for _ in range(4)]
+            B_Z = [K.in_train_phase(K.dropout(ones, self.dropout_Z), ones) for _ in range(4)]
             constants.append(B_Z)
         else:
             constants.append([K.cast_to_floatx(1.) for _ in range(4)])
@@ -354,7 +364,10 @@ class AttentionLSTM(LSTM):
         print(self.input_spec[0].shape)
         print(self.input_spec[0].ndim)
         print(self.stateful)'''
-        return super(AttentionLSTM, self).call(x)
+        result  = super(AttentionLSTM, self).call(x)
+        #save alphaz
+        #print('Saving Alphaz')
+        return result
     
     def get_output_shape_for(self, input_shape):
         assert type(input_shape) is list  # must have mutiple input shape tuples
