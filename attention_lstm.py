@@ -11,10 +11,10 @@ class AttentionLSTM(LSTM):
         prev_h1 = states[0]
         prev_c1 = states[1]
         proj_z = states[2]
-        #alphaz = states[3]
-        B_U = states[3]
-        B_W = states[4]
-        B_Z = states[5]
+        alphaz = states[3]
+        B_U = states[4]
+        B_W = states[5]
+        B_Z = states[6]
 
         proj_state = K.dot(prev_h1, self.Wd_att)
         proj_z = proj_z + proj_state[:, None, :]
@@ -59,8 +59,8 @@ class AttentionLSTM(LSTM):
         o = self.inner_activation(x_o + h_o + z_o)
 
         h = o * self.activation(c)
-
-        return h, [h, c, proj_z]
+        
+        return h, [h, c, proj_z, alpha]
     
     def get_proj_z(self):
         return K.dot(self.initial_z, self.Wc_att) + self.b_att if self.initial_z is not None else None
@@ -116,7 +116,7 @@ class AttentionLSTM(LSTM):
         else:
             # initial states: 3 all-zero tensors of shape (output_dim)
             proj_z = self.get_proj_z()
-            self.states = [self.initial_h, self.initial_z, proj_z]
+            self.states = [self.initial_h, self.initial_z, proj_z, K.zeros((1, 196))]
         
         '''self.Wc_att = self.init((self.z_dim, self.z_dim),
                                  name='{}_Wc_att'.format(self.name))
@@ -234,7 +234,7 @@ class AttentionLSTM(LSTM):
 
             self.states[2] = self.get_proj_z() 
             
-            #self.states[3] = np.zeros((input_shape[0], 196))
+            K.set_value(self.states[3], np.zeros((input_shape[0], 196)))
             '''K.set_value(self.states[1],
                         self.initial_c)
             K.set_value(self.states[2],
@@ -242,7 +242,7 @@ class AttentionLSTM(LSTM):
         else:
             self.states = [self.initial_h,
                            self.initial_c,
-                           self.get_proj_z()]
+                           self.get_proj_z(), K.zeros((input_shape[0], 196))]
     
     def get_initial_states(self, x):
         input_shape = self.input_spec[0].shape
@@ -265,11 +265,11 @@ class AttentionLSTM(LSTM):
 
             self.states[2] =self.get_proj_z() 
 
-            #self.states[3] = np.zeros((input_shape[0], 196))
+            K.set_value(self.states[3], np.zeros((1, 196)))
         else:
             self.states = [self.initial_h,
                            self.initial_c,
-                           self.get_proj_z()]
+                           self.get_proj_z(), K.zeros((1, 196))]
         return self.states
     
     def get_constants(self, x):
@@ -364,6 +364,7 @@ class AttentionLSTM(LSTM):
         print(self.input_spec[0].shape)
         print(self.input_spec[0].ndim)
         print(self.stateful)'''
+        
         result  = super(AttentionLSTM, self).call(x)
         #save alphaz
         #print('Saving Alphaz')
