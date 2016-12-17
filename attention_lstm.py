@@ -11,10 +11,10 @@ class AttentionLSTM(LSTM):
         prev_h1 = states[0]
         prev_c1 = states[1]
         proj_z = states[2]
-        alphaz = states[3]
-        B_U = states[4]
-        B_W = states[5]
-        B_Z = states[6]
+        #alphaz = states[3]
+        B_U = states[3]
+        B_W = states[4]
+        B_Z = states[5]
 
         proj_state = K.dot(prev_h1, self.Wd_att)
         proj_z = proj_z + proj_state[:, None, :]
@@ -26,8 +26,8 @@ class AttentionLSTM(LSTM):
         alpha_shape = alpha.shape
         alpha = K.softmax(alpha.reshape((alpha_shape[0], alpha_shape[1])))
         
-        alphaz = alpha
-        self.alphaz = alpha
+        #alphaz = alpha
+        #self.alphaz = alpha
         
         z = (self.initial_z * alpha[:, :, None]).sum(1)
         #print(z)
@@ -60,12 +60,18 @@ class AttentionLSTM(LSTM):
 
         h = o * self.activation(c)
         
-        return h, [h, c, proj_z, alpha]
+        output = None
+        if self.ret_alpha:
+            output = alpha
+        else:
+            output = h
+        
+        return output, [h, c, proj_z]
     
     def get_proj_z(self):
         return K.dot(self.initial_z, self.Wc_att) + self.b_att if self.initial_z is not None else None
 
-    def __init__(self, output_dim, z_dim, initial_h=None, initial_c=None, initial_z=None ,
+    def __init__(self, output_dim, z_dim, ret_alpha=False, initial_h=None, initial_c=None, initial_z=None ,
                  init='glorot_uniform', inner_init='orthogonal',
                  forget_bias_init='one', activation='tanh',
                  inner_activation='hard_sigmoid',
@@ -75,7 +81,7 @@ class AttentionLSTM(LSTM):
         self.initial_h = initial_h
         self.initial_c = initial_c
         self.initial_z = initial_z
-        self.alphaz = None
+        self.ret_alpha = ret_alpha
         self.z_dim = z_dim
         self.init = initializations.get(init)
         self.inner_init = initializations.get(inner_init)
@@ -116,7 +122,7 @@ class AttentionLSTM(LSTM):
         else:
             # initial states: 3 all-zero tensors of shape (output_dim)
             proj_z = self.get_proj_z()
-            self.states = [self.initial_h, self.initial_z, proj_z, K.zeros((1, 196))]
+            self.states = [self.initial_h, self.initial_z, proj_z]
         
         '''self.Wc_att = self.init((self.z_dim, self.z_dim),
                                  name='{}_Wc_att'.format(self.name))
@@ -234,7 +240,7 @@ class AttentionLSTM(LSTM):
 
             self.states[2] = self.get_proj_z() 
             
-            K.set_value(self.states[3], np.zeros((input_shape[0], 196)))
+            #K.set_value(self.states[3], np.zeros((input_shape[0], 196)))
             '''K.set_value(self.states[1],
                         self.initial_c)
             K.set_value(self.states[2],
@@ -242,7 +248,7 @@ class AttentionLSTM(LSTM):
         else:
             self.states = [self.initial_h,
                            self.initial_c,
-                           self.get_proj_z(), K.zeros((input_shape[0], 196))]
+                           self.get_proj_z()]
     
     def get_initial_states(self, x):
         input_shape = self.input_spec[0].shape
@@ -265,11 +271,11 @@ class AttentionLSTM(LSTM):
 
             self.states[2] =self.get_proj_z() 
 
-            K.set_value(self.states[3], np.zeros((1, 196)))
+            #K.set_value(self.states[3], np.zeros((1, 196)))
         else:
             self.states = [self.initial_h,
                            self.initial_c,
-                           self.get_proj_z(), K.zeros((1, 196))]
+                           self.get_proj_z()]
         return self.states
     
     def get_constants(self, x):
@@ -374,6 +380,13 @@ class AttentionLSTM(LSTM):
         assert type(input_shape) is list  # must have mutiple input shape tuples
         print("input shapes %s" %input_shape)
         x_shape = input_shape[0]
+        
+        output_size = 0
+        if self.ret_alpha:
+            output_size = 196
+        else:
+            output_size = self.output_dim
+
         if self.return_sequences:
             return (x_shape[0], x_shape[1], self.output_dim)
         else:
