@@ -4,6 +4,8 @@
  Our Project Report : https://github.com/danielsamfdo/image_caption_using_attention/blob/master/Image_Captioning_with_Visual_Attention.pdf
  
  
+ 
+Other Web Resources: 
 
 http://www.pyimagesearch.com/2016/07/18/installing-keras-for-deep-learning/
 
