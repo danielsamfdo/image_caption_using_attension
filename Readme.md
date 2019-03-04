@@ -20,4 +20,4 @@ http://t-satoshi.blogspot.com/2015/12/image-caption-generation-by-cnn-and-lstm.h
 https://github.com/heuritech/convnets-keras/blob/master/convnetskeras/convnets.py
 
 
-Src Code
+Src Code in https://github.com/danielsamfdo/image_caption_using_attention/blob/master/Keras%20Attention%20Trial.ipynb 
